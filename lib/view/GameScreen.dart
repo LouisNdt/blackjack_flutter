@@ -15,7 +15,10 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _MyGameScreenState();
 }
 
-class _MyGameScreenState extends State<GameScreen> {
+class _MyGameScreenState extends State<GameScreen> with SingleTickerProviderStateMixin{
+
+  late AnimationController _animationController;
+  late Animation<double> _animation;
 
   DeckModel deckModel = new DeckModel();
   PlayerModel playerModel = new PlayerModel();
@@ -24,10 +27,21 @@ class _MyGameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
-    bankModel.drawCardForBank(deckModel, false);
-    bankModel.drawCardForBank(deckModel, true);
-    playerModel.drawCardForPlayer(deckModel);
-    playerModel.drawCardForPlayer(deckModel);  }
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _animation = CurvedAnimation(parent: _animationController, curve: Curves.easeInOut);
+    bankModel.drawCardForBank(deckModel, false, _animationController);
+    bankModel.drawCardForBank(deckModel, true, _animationController);
+    playerModel.drawCardForPlayer(deckModel, _animationController);
+    playerModel.drawCardForPlayer(deckModel, _animationController);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +64,7 @@ class _MyGameScreenState extends State<GameScreen> {
                 width: MediaQuery.of(context).size.width / 2,
                 height: 150,
                 child: Stack(
-                  children: [...dispCardForBank(bankModel, context)],
+                  children: [...dispCardForBank(bankModel, context, _animationController, _animation)],
                 ),
               ),
               // Score du joueur
@@ -59,7 +73,7 @@ class _MyGameScreenState extends State<GameScreen> {
                 width: MediaQuery.of(context).size.width / 2, // Ajustez la largeur selon vos besoins
                 height: 150, // Ajustez la hauteur selon vos besoins
                 child: Stack(
-                  children: [...dispCardForPlayer(playerModel, context)],
+                  children: [...dispCardForPlayer(playerModel, context, _animationController, _animation)],
                 ),
               ),
               // Boutons
@@ -71,7 +85,7 @@ class _MyGameScreenState extends State<GameScreen> {
                     ElevatedButton(
                       onPressed: () {
                         setState(() {
-                          playerModel.drawCardForPlayer(deckModel);
+                          playerModel.drawCardForPlayer(deckModel, _animationController);
                           if (playerModel.points > 21) {
                             showDialog(context: context, builder: (BuildContext context) {
                               return showResult(playerModel, bankModel, context);
@@ -90,7 +104,7 @@ class _MyGameScreenState extends State<GameScreen> {
                         setState(() {
                           revealBankCards(bankModel);
                           while(bankModel.points < 17) {
-                            bankModel.drawCardForBank(deckModel, true);
+                            bankModel.drawCardForBank(deckModel, true, _animationController);
                           }
                           showDialog(context: context, builder: (BuildContext context) {
                             return showResult(playerModel, bankModel, context);
@@ -114,37 +128,81 @@ class _MyGameScreenState extends State<GameScreen> {
   }
 }
 
-List<Widget> dispCardForPlayer(PlayerModel playerModel, BuildContext context) {
+List<Widget> dispCardForPlayer(PlayerModel playerModel, BuildContext context, AnimationController _animationController, Animation<double> _animation) {
   List<CardModel> playerCard = playerModel.playerCards;List<Widget> cardWidgets = []; // Liste vide pour stocker les widgets
 
   for (var i = 0; i < playerCard.length; i++) {
-    cardWidgets.add(
-      Positioned(
-        left: i * 30.0,
-        child: SizedBox(
-          width: MediaQuery.of(context).size.width / 4,
-          child: Image.asset(playerCard[i].imageUrl, fit: BoxFit.cover),
+    // Animation uniquement pour la dernière carte
+    if (i == playerCard.length - 1 && _animationController.isAnimating) {
+      cardWidgets.add(
+        AnimatedBuilder(
+          animation: _animationController,
+          builder: (context, child) {
+            return Positioned( // Positionnez la carte à sa destination finale
+              left: i * 30.0,
+              child: Opacity( // Contrôlez l'opacité pour l'effet d'apparition
+                opacity: _animation.value,
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width / 4,
+                  child: Image.asset(playerCard[i].imageUrl, fit: BoxFit.cover),
+                ),
+              ),
+            );
+          },
         ),
-      ),
-    );
+      );
+    } else {
+      // Affichez les autres cartes normalement
+      cardWidgets.add(
+        Positioned(
+          left: i * 30.0,
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width / 4,
+            child: Image.asset(playerCard[i].imageUrl, fit: BoxFit.cover),
+          ),
+        ),
+      );
+    }
   }
 
   return cardWidgets;
 }
 
-List<Widget> dispCardForBank(BankModel bankModel, BuildContext context) {
+List<Widget> dispCardForBank(BankModel bankModel, BuildContext context, AnimationController _animationController, Animation<double> _animation) {
   List<CardModel> bankCards = bankModel.bankCards;List<Widget> cardWidgets = []; // Liste vide pour stocker les widgets
 
   for (var i = 0; i < bankCards.length; i++) {
-    cardWidgets.add(
-      Positioned(
-        left: i * 30.0,
-        child: SizedBox(
-          width: MediaQuery.of(context).size.width / 4,
-          child: Image.asset(bankCards[i].isFaceUp ? bankCards[i].imageUrl : 'assets/Cards/card back black.png'),
+    // Animation uniquement pour la dernière carte
+    if (i == bankCards.length - 1 && _animationController.isAnimating) {
+      cardWidgets.add(
+        AnimatedBuilder(
+          animation: _animationController,
+          builder: (context, child) {
+            return Positioned( // Positionnez la carte à sa destination finale
+              left: i * 30.0,
+              child: Opacity( // Contrôlez l'opacité pour l'effet d'apparition
+                opacity: _animation.value,
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width / 4,
+                  child: Image.asset(bankCards[i].isFaceUp ? bankCards[i].imageUrl : 'assets/Cards/card back black.png', fit: BoxFit.cover),
+                ),
+              ),
+            );
+          },
         ),
-      ),
-    );
+      );
+    } else {
+      // Affichez les autres cartes normalement
+      cardWidgets.add(
+        Positioned(
+          left: i * 30.0,
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width / 4,
+            child: Image.asset(bankCards[i].isFaceUp ? bankCards[i].imageUrl : 'assets/Cards/card back black.png', fit: BoxFit.cover),
+          ),
+        ),
+      );
+    }
   }
 
   return cardWidgets;
